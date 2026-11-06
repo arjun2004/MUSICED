@@ -1,26 +1,192 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
+/*
+ * MUSICED design tokens
+ * ---------------------
+ * Dark-first. Charcoal surfaces, a single lime "signal" accent, and album
+ * artwork doing the heavy visual lifting. Rounded corners are kept small.
+ * Light theme is intentionally not shipped yet; :root holds the dark palette.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
+  --font-heading: var(--font-geist-sans);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* MUSICED-specific surfaces */
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-hairline: var(--hairline);
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
+  --color-star: var(--star);
+  --color-star-empty: var(--star-empty);
+  --color-chart-bar: var(--chart-bar);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-fade-up: fade-up 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root {
+  color-scheme: dark;
+
+  --background: #151719;
+  --surface: #202428;
+  --surface-raised: #2a2f34;
+  --hairline: rgb(255 255 255 / 0.07);
+  --foreground: #f5f5f5;
+  --muted-foreground: #a3a3a3;
+
+  --signal: #a3e635;
+  --signal-foreground: #151719;
+  --star: #a3e635;
+  --star-empty: #3a4046;
+  /* Data marks: validated (dataviz validator, dark band L 0.48–0.67) against #151719.
+     Bright --signal stays for hover/emphasis only. */
+  --chart-bar: #6aa81a;
+
+  --card: #202428;
+  --card-foreground: #f5f5f5;
+  --popover: #202428;
+  --popover-foreground: #f5f5f5;
+  --primary: #a3e635;
+  --primary-foreground: #151719;
+  --secondary: #2a2f34;
+  --secondary-foreground: #f5f5f5;
+  --muted: #202428;
+  --accent: #2a2f34;
+  --accent-foreground: #f5f5f5;
+  --destructive: #f87171;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.12);
+  --ring: #a3e635;
+
+  --chart-1: #a3e635;
+  --chart-2: #84cc16;
+  --chart-3: #65a30d;
+  --chart-4: #4d7c0f;
+  --chart-5: #3f6212;
+
+  --radius: 0.5rem;
+
+  --sidebar: #1a1d20;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #a3e635;
+  --sidebar-primary-foreground: #151719;
+  --sidebar-accent: #2a2f34;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #a3e635;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--signal);
+    color: var(--signal-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Liner-note style label: mono, uppercase, tracked. Used for metadata. */
+  .eyebrow {
+    @apply font-mono text-[0.6875rem] font-medium tracking-[0.14em] text-muted-foreground uppercase;
+  }
+  /* Editorial display heading. */
+  .display {
+    @apply text-4xl leading-[1.02] font-semibold tracking-[-0.035em] text-balance sm:text-5xl lg:text-6xl;
+  }
+  .heading {
+    @apply text-2xl leading-tight font-semibold tracking-[-0.025em] text-balance;
+  }
+  .prose-review {
+    @apply text-[0.9375rem] leading-7 text-foreground/90;
+  }
+  .prose-review p + p {
+    @apply mt-4;
+  }
+  .container-page {
+    @apply mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
