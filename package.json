@@ -16,7 +16,8 @@
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --schema public > src/types/database.ts",
     "seed:generate": "node scripts/generate-dev-seed.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "catalog:warm": "node scripts/warm-catalog.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

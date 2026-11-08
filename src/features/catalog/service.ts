@@ -160,7 +160,7 @@ export async function importAlbum(externalId: string): Promise<{ id: string; slu
   const { data: id, error } = await admin.rpc("ingest_album", { p: toIngestPayload(album) });
   if (error || !id) {
     console.error("[catalog] ingest failed", error?.code, error?.message);
-    throw new CatalogImportError("We couldn't add that album to MUSICED. Please try again.");
+    throw new CatalogImportError(importFailureMessage(error, "album"));
   }
 
   const { data: row } = await admin.from("albums").select("id, slug").eq("id", id).single();
@@ -326,7 +326,7 @@ export async function importArtist(externalId: string): Promise<{ id: string; sl
   });
   if (error || !id) {
     console.error("[catalog] artist ingest failed", error?.code, error?.message);
-    throw new CatalogImportError("We couldn't add that artist. Please try again.");
+    throw new CatalogImportError(importFailureMessage(error, "artist"));
   }
   const { data: row } = await admin.from("artists").select("id, slug").eq("id", id).single();
   if (!row) throw new CatalogImportError("We couldn't add that artist. Please try again.");
@@ -338,4 +338,19 @@ export async function getProviderDiscography(externalId: string) {
   return cached(`${provider.id}:discography:${externalId}`, 7 * SEARCH_CACHE_TTL_MS, () =>
     provider.getDiscography(externalId, 100),
   );
+}
+
+/**
+ * A rejected service key (wrong project, local demo key, or the publishable key
+ * pasted by mistake) is a deployment problem, not a transient one — say so.
+ */
+function importFailureMessage(error: { code?: string; message?: string } | null, kind: "album" | "artist") {
+  const msg = `${error?.code ?? ""} ${error?.message ?? ""}`.toLowerCase();
+  if (/invalid api key|jwt|401|42501|permission denied|pgrst30/.test(msg)) {
+    console.error(
+      "[catalog] SUPABASE_SECRET_KEY was rejected by Supabase. Set it to this project's secret key (Project Settings → API Keys) and redeploy.",
+    );
+    return `Adding new ${kind}s is temporarily unavailable (server configuration). Please try again later.`;
+  }
+  return kind === "album" ? "We couldn't add that album to MUSICED. Please try again." : "We couldn't add that artist. Please try again.";
 }
