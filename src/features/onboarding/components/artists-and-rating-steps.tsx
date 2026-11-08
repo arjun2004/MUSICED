@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlbumCover } from "@/components/albums/album-cover";
 import { StarRatingInput } from "@/components/shared/star-rating-input";
-import type { AlbumWithStats } from "@/types/domain";
 import { setRating } from "@/features/listening/actions";
 import {
   getOnboardingAlbums,
+  rateSuggestedAlbum,
   saveFavoriteArtists,
   searchArtistsAction,
   type ArtistPick,
+  type OnboardingAlbum,
 } from "@/features/onboarding/actions";
 
 function useDebounced(value: string, delay = 350) {
@@ -158,10 +159,16 @@ export function ArtistsStep({
   );
 }
 
-/** Rate a few well-known albums in the viewer's genres. Ratings save on tap. */
+const albumKey = (a: OnboardingAlbum) => a.albumId ?? `mb:${a.externalId}`;
+
+/**
+ * Rate albums by the artists the viewer picked (and in their genres).
+ * MusicBrainz suggestions are imported only when actually rated.
+ */
 export function RateStep({ nav }: { nav: React.ReactNode }) {
-  const [albums, setAlbums] = useState<AlbumWithStats[] | null>(null);
+  const [albums, setAlbums] = useState<OnboardingAlbum[] | null>(null);
   const [ratings, setRatings] = useState<Record<string, number | null>>({});
+  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -176,12 +183,17 @@ export function RateStep({ nav }: { nav: React.ReactNode }) {
     };
   }, []);
 
-  async function rate(albumId: string, value: number | null) {
-    const previous = ratings[albumId] ?? null;
-    setRatings((r) => ({ ...r, [albumId]: value }));
-    const result = await setRating(albumId, value);
+  async function rate(album: OnboardingAlbum, value: number | null) {
+    const k = albumKey(album);
+    const previous = ratings[k] ?? null;
+    setRatings((r) => ({ ...r, [k]: value }));
+    setSaving(k);
+    const result = album.albumId
+      ? await setRating(album.albumId, value)
+      : await rateSuggestedAlbum(album.externalId!, value);
+    setSaving(null);
     if (!result.ok) {
-      setRatings((r) => ({ ...r, [albumId]: previous }));
+      setRatings((r) => ({ ...r, [k]: previous }));
       toast.error(result.error);
     }
   }
@@ -200,30 +212,41 @@ export function RateStep({ nav }: { nav: React.ReactNode }) {
               </li>
             ))
           : null}
-        {albums?.map((album) => (
-          <li key={album.id} className="min-w-0">
-            <AlbumCover src={album.cover_url} title={album.title} artist={album.artist_credit} sizes="160px" />
-            <p className="mt-2 truncate text-sm font-medium">{album.title}</p>
-            <p className="truncate text-xs text-muted-foreground">{album.artist_credit}</p>
-            <StarRatingInput
-              value={ratings[album.id] ?? null}
-              onChange={(v) => rate(album.id, v)}
-              size={18}
-              showLabel={false}
-              aria-label={`Rate ${album.title}`}
-              className="mt-1.5 gap-1"
-            />
-          </li>
-        ))}
+        {albums?.map((album) => {
+          const k = albumKey(album);
+          return (
+            <li key={k} className="min-w-0">
+              <AlbumCover src={album.cover_url} title={album.title} artist={album.artist_credit} sizes="160px" />
+              <p className="mt-2 truncate text-sm font-medium">{album.title}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {album.artist_credit}
+                {album.release_year ? ` · ${album.release_year}` : ""}
+              </p>
+              <p className="truncate text-[0.6875rem] text-signal/80">{album.reason}</p>
+              <StarRatingInput
+                value={ratings[k] ?? null}
+                onChange={(v) => rate(album, v)}
+                size={18}
+                showLabel={false}
+                disabled={saving === k}
+                aria-label={`Rate ${album.title}`}
+                className="mt-1.5 gap-1"
+              />
+            </li>
+          );
+        })}
       </ul>
       {albums && albums.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          There aren&apos;t enough albums to suggest yet. You can rate albums from any album page.
+        <p className="rounded-md border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+          We don&apos;t have albums to suggest from your picks yet. Go back and add a few favourite artists, or skip
+          this step. You can rate any album from its page later.
         </p>
       ) : null}
-      <p className="mt-4 font-mono text-xs text-muted-foreground tabular-nums">
-        {rated} rated{rated < 3 ? " · rate a few you know, skip the rest" : ""}
-      </p>
+      {albums && albums.length > 0 ? (
+        <p className="mt-4 font-mono text-xs text-muted-foreground tabular-nums">
+          {rated} rated{rated < 3 ? " · rate a few you know, skip the rest" : ""}
+        </p>
+      ) : null}
       {nav}
     </div>
   );

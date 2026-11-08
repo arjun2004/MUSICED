@@ -220,7 +220,11 @@ export async function browseAlbums(filters: BrowseFilters): Promise<AlbumWithSta
     p_limit: pageSize,
     p_offset: ((filters.page ?? 1) - 1) * pageSize,
   });
-  assertQuery(error, "albums");
+  // Rails using this are prerendered: hide them rather than fail the page/build.
+  if (error) {
+    if (!isAbortError(error)) console.error("[discovery] browse unavailable:", error.message);
+    return [];
+  }
   return (data ?? []).map((row) => ({
     id: row.id,
     slug: row.slug,

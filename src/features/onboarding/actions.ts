@@ -16,9 +16,12 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import {
   CatalogImportError,
   findArtistByExternalId,
+  getProviderDiscography,
+  importAlbum,
   importArtist,
   searchArtistsCatalog,
 } from "@/features/catalog/service";
+import { setRating } from "@/features/listening/actions";
 
 const SIGNED_OUT = "Your session has ended. Please sign in again.";
 
@@ -197,32 +200,130 @@ export async function saveFavoriteArtists(picks: ArtistPick[]): Promise<ActionRe
   return ok(undefined);
 }
 
-/** Well-rated albums in the viewer's genres to rate during onboarding. */
-export async function getOnboardingAlbums() {
+export type OnboardingAlbum = {
+  /** Local album id when it's already on MUSICED; otherwise null and `externalId` is set. */
+  albumId: string | null;
+  externalId: string | null;
+  title: string;
+  artist_credit: string;
+  release_year: number | null;
+  cover_url: string | null;
+  /** Why it's suggested, shown under the album. */
+  reason: string;
+};
+
+/**
+ * Albums to rate during onboarding, most relevant first:
+ *   1. by the viewer's favourite artists (catalog first, then their MusicBrainz
+ *      discography — imported only when actually rated),
+ *   2. popular/top albums in the viewer's favourite genres.
+ * Never pads with unrelated albums: an empty result means "skip this step".
+ */
+export async function getOnboardingAlbums(): Promise<ActionResult<OnboardingAlbum[]>> {
   const viewer = await getViewer();
   if (!viewer) return fail(SIGNED_OUT);
+  const LIMIT = 12;
+  const out: OnboardingAlbum[] = [];
+  const seenLocal = new Set<string>();
+  const seenTitles = new Set<string>();
+  const key = (title: string, artist: string) => `${title}|${artist}`.toLowerCase();
+  const push = (a: OnboardingAlbum) => {
+    const k = key(a.title, a.artist_credit);
+    if (seenTitles.has(k) || (a.albumId && seenLocal.has(a.albumId)) || out.length >= LIMIT) return;
+    seenTitles.add(k);
+    if (a.albumId) seenLocal.add(a.albumId);
+    out.push(a);
+  };
+
   try {
     const supabase = await createClient();
-    const { data: genres } = await supabase
-      .from("user_favorite_genres")
-      .select("genre:genres!inner(slug)")
-      .eq("user_id", viewer.id);
-    const slugs = (genres ?? []).map((g) => g.genre.slug).slice(0, 3);
-    const pools = await Promise.all(
-      (slugs.length ? slugs : [undefined]).map((genre) => browseAlbums({ sort: "popular", genre, pageSize: 12 })),
-    );
-    const seen = new Set<string>();
-    const albums = pools.flat().filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
-    if (albums.length < 8) {
-      for (const a of await browseAlbums({ sort: "top", pageSize: 18 })) {
-        if (!seen.has(a.id)) {
-          seen.add(a.id);
-          albums.push(a);
+    const [{ data: favArtists }, { data: genres }] = await Promise.all([
+      supabase
+        .from("user_favorite_artists")
+        .select("position, artist:artists!inner(id, name)")
+        .eq("user_id", viewer.id)
+        .order("position")
+        .limit(4),
+      supabase.from("user_favorite_genres").select("genre:genres!inner(slug, name)").eq("user_id", viewer.id),
+    ]);
+    const artists = (favArtists ?? []).map((row) => row.artist);
+
+    // 1a. Their albums already on MUSICED.
+    if (artists.length) {
+      const { data: credits } = await supabase
+        .from("album_artists")
+        .select("artist_id, album:albums!inner(id, title, artist_credit, release_year, cover_url)")
+        .in("artist_id", artists.map((a) => a.id))
+        .limit(60);
+      for (const row of credits ?? []) {
+        const name = artists.find((a) => a.id === row.artist_id)?.name ?? "an artist you like";
+        push({ albumId: row.album.id, externalId: null, ...row.album, reason: `Because you like ${name}` });
+      }
+    }
+
+    // 1b. Their discography from MusicBrainz (cached), up to 4 albums per artist.
+    if (artists.length && out.length < LIMIT) {
+      const { data: sources } = await supabase
+        .from("catalog_sources")
+        .select("entity_id, external_id")
+        .eq("provider", "musicbrainz")
+        .eq("entity_type", "artist")
+        .in("entity_id", artists.map((a) => a.id));
+      const discographies = await Promise.all(
+        (sources ?? []).map(async (src) => ({
+          name: artists.find((a) => a.id === src.entity_id)?.name ?? "",
+          hits: await getProviderDiscography(src.external_id).catch(() => []),
+        })),
+      );
+      for (const { name, hits } of discographies) {
+        // Most recent full albums first: the ones people are likeliest to know.
+        const picks = [...hits]
+          .sort((a, b) => Number(b.albumType === "album") - Number(a.albumType === "album") || (b.releaseYear ?? 0) - (a.releaseYear ?? 0))
+          .slice(0, 4);
+        for (const hit of picks) {
+          push({
+            albumId: null,
+            externalId: hit.externalId,
+            title: hit.title,
+            artist_credit: hit.artistCredit,
+            release_year: hit.releaseYear,
+            cover_url: hit.coverUrl,
+            reason: `Because you like ${name}`,
+          });
         }
       }
     }
-    return ok(albums.slice(0, 12));
-  } catch {
+
+    // 2. Popular albums in their genres (genre-matched only — no unrelated filler).
+    const genreRows = (genres ?? []).map((g) => g.genre).slice(0, 3);
+    for (const genre of genreRows) {
+      if (out.length >= LIMIT) break;
+      for (const sort of ["popular", "top"] as const) {
+        for (const a of await browseAlbums({ sort, genre: genre.slug, pageSize: 8 })) {
+          push({ albumId: a.id, externalId: null, title: a.title, artist_credit: a.artist_credit, release_year: a.release_year, cover_url: a.cover_url, reason: genre.name });
+        }
+      }
+    }
+
+    return ok(out);
+  } catch (err) {
+    console.error("[onboarding] album suggestions failed:", (err as Error).message);
     return fail("We couldn't load albums right now.");
+  }
+}
+
+/** Rate a MusicBrainz suggestion: import it (idempotent), then save the rating. */
+export async function rateSuggestedAlbum(externalId: string, rating: number | null): Promise<ActionResult<{ albumId: string }>> {
+  const viewer = await getViewer();
+  if (!viewer) return fail(SIGNED_OUT);
+  if (!/^[0-9a-f-]{36}$/i.test(externalId)) return fail("Unknown album.");
+  const limit = await checkRateLimit("catalogImport", viewer.id);
+  if (!limit.allowed) return fail("You've added a lot of albums recently. Try again in a bit.");
+  try {
+    const album = await importAlbum(externalId);
+    const result = await setRating(album.id, rating);
+    return result.ok ? ok({ albumId: album.id }) : result;
+  } catch (err) {
+    return fail(err instanceof CatalogImportError ? err.message : "We couldn't save that rating.");
   }
 }

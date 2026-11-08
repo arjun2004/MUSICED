@@ -97,6 +97,12 @@ Key ideas:
 10. **Rate limits are real in tests too** — E2E helpers clear `signIn:`/`signUp:` buckets locally.
 11. **Genres are referenced by slug** between client and server (ids change on `db reset`; cached lists went stale).
 12. **List editor autosaves** album add/move/remove; "Save details" is only for title/description/ranked/visibility.
+14. **Onboarding "rate a few albums"** suggests by favourite artists first (catalog, then their MusicBrainz
+    discography — imported only when rated via `rateSuggestedAlbum`), then genre matches; never unrelated filler.
+15. **Production catalog starts empty** — fill it with `npm run catalog:warm -- <site-url>` (uses the site's own
+    import route). "Invalid API key" in Vercel logs = wrong `SUPABASE_SECRET_KEY`.
+16. **Icons** come from `src/app/icon.svg`; regenerate favicon/apple/PWA/OG images with `npm run icons:generate`.
+17. Prerendered rails (`browseAlbums`, trending, hero covers) return `[]` on DB errors so builds never fail on a DB outage.
 13. Windows/Git-Bash shells mangle backslashes in inline scripts — write files with an editor/Python when exact escapes matter.
 
 ## 7. Local development

@@ -125,7 +125,11 @@ paste the client ID/secret under **Authentication → Sign In / Providers → Go
    update public.profiles set role = 'admin' where username = 'your_username';
    ```
    The **Moderation** link appears in your account menu (`/admin/moderation`).
-4. Search for a few albums on `/search` to start the catalog; open some artists to pull discographies.
+4. Fill the catalog with ~50 real albums: `npm run catalog:warm -- https://your-domain.com`
+   (uses the site's own import route; needs a valid `SUPABASE_SECRET_KEY` on Vercel). Albums people
+   open from `/search` and artist discographies are added on demand after that.
+   If imports fail with "Invalid API key" in the Vercel logs, `SUPABASE_SECRET_KEY` is not this
+   project's secret key (common: the local `.env.local` key was copied) — replace it and redeploy.
 5. Submit `https://your-domain.com/sitemap.xml` in Google Search Console.
 
 ## Updating later
