@@ -48,3 +48,13 @@ supabase/.env
 /test-results/
 /playwright-report/
 /e2e-shots/
+
+# local-only files (kept on disk, removed from the GitHub repo)
+/.env.example
+/.nvmrc
+/AGENTS.md
+/CLAUDE.md
+/DEVELOPMENT_STATUS.md
+/my prompt
+/playwright.config.ts
+/supabase/

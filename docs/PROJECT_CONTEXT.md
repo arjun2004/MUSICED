@@ -103,6 +103,8 @@ Key ideas:
     import route). "Invalid API key" in Vercel logs = wrong `SUPABASE_SECRET_KEY`.
 16. **Icons** come from `src/app/icon.svg`; regenerate favicon/apple/PWA/OG images with `npm run icons:generate`.
 17. Prerendered rails (`browseAlbums`, trending, hero covers) return `[]` on DB errors so builds never fail on a DB outage.
+18. **Vercel function region must match the Supabase region** — production DB is Singapore, so
+    `vercel.json` pins functions to `sin1`. The default `iad1` made every query cross the Pacific (~1–2 s pages).
 13. Windows/Git-Bash shells mangle backslashes in inline scripts — write files with an editor/Python when exact escapes matter.
 
 ## 7. Local development

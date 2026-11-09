@@ -99,6 +99,9 @@ paste the client ID/secret under **Authentication → Sign In / Providers → Go
 
 1. Push the repository to GitHub/GitLab and **Import** it in Vercel (framework: Next.js, auto-detected).
 2. **Settings → General → Node.js Version: 22.x or newer** (supabase-js targets Node 22+).
+   **Function region** is pinned in `vercel.json` (`"regions": ["sin1"]`) to sit next to the Supabase
+   project (Singapore, `ap-southeast-1`). If you move the database, change it to match — a mismatch
+   (e.g. the default `iad1` with a Singapore DB) adds ~220 ms to every query and makes pages feel slow.
 3. **Settings → Environment Variables** (Production, and Preview if you use previews):
 
    | Variable | Value |
