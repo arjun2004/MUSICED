@@ -49,11 +49,11 @@ Geist Mono "liner-note" labels, album artwork as the main visual.
 | Moderation | `/admin/moderation` (staff only, 404 otherwise) | `features/moderation` |
 | SEO / ops | `/sitemap.xml` `/robots.txt` `/api/health`, `src/instrumentation.ts` | |
 
-## 4. Database (11 migrations in `supabase/migrations`)
+## 4. Database (12 migrations in `supabase/migrations`)
 
 `0100 foundation` · `0200 users` · `0300 catalog` · `0400 listening` · `0500 lists` · `0600 social` ·
 `0700 moderation & subscriptions` · `0800 storage & rate limits` · `0900 ingest, search, list RPCs` ·
-`1000 favourite artists, browse/charts, favourites, notifications` · `1100 moderation tools, suspensions, showcase`.
+`1000 favourite artists, browse/charts, favourites, notifications` · `1100 moderation tools, suspensions, showcase` · `1200 "new releases" = last 12 months only`.
 
 Key ideas:
 - **RLS on every table + column-level grants.** Clients can't write counters, roles, `hidden_at`,
